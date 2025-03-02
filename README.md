@@ -2,17 +2,17 @@
 
 [![Build Status](https://github.com/ANLAB-KAIST/rust-dpdk/actions/workflows/build.yaml/badge.svg)](https://github.com/ANLAB-KAIST/rust-dpdk/actions/workflows/build.yaml)
 
-Tested with <https://github.com/DPDK/dpdk.git> v22.11.
+已在 <https://github.com/DPDK/dpdk.git> v22.11 版本上测试通过。
 
-## Goals
+## 设计目标
 
-There are other `rust-dpdk` implementations and you may choose most proper implementation to your purpose.
+市面上有其他的 `rust-dpdk` 实现，您可以根据自己的需求选择最合适的实现。
 (https://github.com/flier/rust-dpdk, https://github.com/netsys/netbricks)
-This library is built for following design goals.
+本库基于以下设计目标构建：
 
-1. Minimize hand-written binding code.
-1. Do not include `bindgen`'s output in this repository.
-1. Statically link DPDK libraries instead of using shared libraries.
+1. 最小化手写绑定代码。
+2. 不在此仓库中包含 `bindgen` 的输出。
+3. 静态链接 DPDK 库而不是使用共享库。
 
 | Library   | No bindgen output | Static linking  | Inline function wrappers | Prevent PMD opt-out |
 | --------- | ----------------- | --------------- | ------------------------ | ------------------- |
@@ -20,35 +20,84 @@ This library is built for following design goals.
 | netbricks | manual FFI        | X               | X                        | O (via dynload)     |
 | ANLAB     | ondemand creation | O               | O (automatic)            | O                   |
 
-## Prerequisites
+## 前提条件
 
-First, this library depends on Intel Data Plane Development Kit (DPDK).
-Refer to official DPDK document to install DPDK (http://doc.dpdk.org/guides/linux_gsg/index.html).
+首先，本库依赖于 Intel Data Plane Development Kit (DPDK)。
+请参考官方 DPDK 文档安装 DPDK (http://doc.dpdk.org/guides/linux_gsg/index.html)。
 
-Here, we include basic instructions to build DPDK and use this library.
+以下是构建 DPDK 和使用本库的基本说明。
 
-Commonly, following packages are required to build DPDK.
-```sh
-apt-get install -y curl git build-essential libnuma-dev meson python3-pyelftools # To download and build DPDK
-apt-get install -y linux-headers-`uname -r` # To build kernel drivers
-apt-get install -y libclang-dev clang llvm-dev pkg-config # To analyze DPDK headers and create bindings
-apt-get install -y libbsd-dev # Required for some DPDK functions
+### 安装依赖
+
+#### Fedora 安装依赖（推荐）
+
+```bash
+# 安装基本构建工具和依赖
+sudo dnf install -y git make gcc kernel-devel kernel-headers numactl-devel meson python3-pyelftools
+
+# 安装 DPDK 开发所需的库
+sudo dnf install -y clang clang-devel llvm-devel pkgconfig
+
+# 安装 libbsd 依赖
+sudo dnf install -y libbsd-devel
+
+# 安装网卡驱动依赖项（可选，根据需要安装）
+sudo dnf install -y libpcap-devel          # pcap 依赖
+sudo dnf install -y libibverbs-devel rdma-core-devel  # Mellanox 网卡依赖
+sudo dnf install -y zlib-devel             # zlib 依赖
+sudo dnf install -y libbpf-devel xdp-tools # XDP 和 BPF 依赖
 ```
 
-DPDK can be installed by following commands:
+#### Ubuntu/Debian 安装依赖
+
+```sh
+# 安装基本构建工具和依赖
+apt-get install -y curl git build-essential libnuma-dev meson python3-pyelftools 
+
+# 安装内核头文件（用于构建内核驱动）
+apt-get install -y linux-headers-`uname -r` 
+
+# 安装 DPDK 开发所需的库
+apt-get install -y libclang-dev clang llvm-dev pkg-config 
+
+# 安装 libbsd 依赖
+apt-get install -y libbsd-dev 
+
+# 安装网卡驱动依赖项（可选，根据需要安装）
+apt-get install -y libpcap-dev          # pcap 依赖
+apt-get install -y libibverbs-dev       # Mellanox 网卡依赖
+apt-get install -y zlib1g-dev           # zlib 依赖
+```
+
+### 安装 DPDK
+
+可以通过以下命令安装 DPDK：
 ```{.sh}
 meson build
 ninja -C build
-ninja -C build install # sudo required
+ninja -C build install # 需要 sudo 权限
 ```
-Since v20.11, kernel drivers are moved to https://git.dpdk.org/dpdk-kmods/.
-If your NIC requires kernel drivers, they are found at the above link.
 
+从 v20.11 开始，内核驱动被移至 https://git.dpdk.org/dpdk-kmods/。
+如果您的网卡需要内核驱动，可以在上述链接中找到。
 
-Now add `rust-dpdk` to your project's `Cargo.toml` and use it!
+现在将 `rust-dpdk` 添加到您项目的 `Cargo.toml` 中即可使用！
 ```toml
 [dependencies]
 rust-dpdk = { git = "https://github.com/ANLAB-KAIST/rust-dpdk", branch = "main" }
+```
+
+## 配置大页内存
+
+DPDK 应用程序需要大页内存支持，可以通过以下命令配置：
+
+```bash
+# 配置 2MB 大页内存
+sudo sh -c 'echo 1024 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages'
+
+# 挂载大页内存文件系统
+sudo mkdir -p /dev/hugepages
+sudo mount -t hugetlbfs nodev /dev/hugepages
 ```
 
 ## 示例程序
@@ -63,21 +112,21 @@ rust-dpdk = { git = "https://github.com/ANLAB-KAIST/rust-dpdk", branch = "main" 
 
 详细的示例说明请参考 [examples/README.md](examples/README.md)。
 
-## Running DPDK Applications
+## 运行 DPDK 应用程序
 
-Most DPDK applications require:
+大多数 DPDK 应用程序需要：
 
-1. **Root privileges**: Use `sudo` when running the examples
-2. **Huge pages**: Configure huge pages for better performance
+1. **Root 权限**：运行示例时使用 `sudo`
+2. **大页内存**：为了获得更好的性能，配置大页内存
    ```
    echo 1024 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
    ```
-3. **Network device binding**: For physical NICs, bind them to DPDK-compatible drivers
+3. **网络设备绑定**：对于物理网卡，将其绑定到 DPDK 兼容的驱动程序
    ```
    sudo dpdk-devbind.py --bind=vfio-pci 0000:01:00.0
    ```
 
-The examples in this repository are configured to use virtual devices (pcap) by default, so they can be tested without dedicated hardware.
+本仓库中的示例默认配置为使用虚拟设备（pcap），因此可以在没有专用硬件的情况下进行测试。
 
 ## DPDK 网络接口绑定工具使用指南
 
