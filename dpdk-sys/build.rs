@@ -382,9 +382,29 @@ impl State {
         let mut template_string = String::new();
         template.read_to_string(&mut template_string).ok();
         let mut headers_string = String::new();
+        
+        // 确保 rte_ethdev.h 在 rte_eth_ctrl.h 之前被包含
+        // 首先添加基础头文件
+        headers_string += "#include \"rte_common.h\"\n";
+        headers_string += "#include \"rte_config.h\"\n";
+        
+        // 然后添加 rte_ethdev.h
+        headers_string += "#include \"rte_ethdev.h\"\n";
+        
+        // 添加 rte_mempool.h，确保它在其他可能依赖它的头文件之前被包含
+        headers_string += "#include \"rte_mempool.h\"\n";
+        
+        // 最后添加其他头文件，但排除已经添加的
         for header in &self.dpdk_headers {
-            headers_string += &format!("#include \"{}\"\n", header);
+            if header != "rte_common.h" && header != "rte_config.h" && header != "rte_ethdev.h" && header != "rte_mempool.h" {
+                headers_string += &format!("#include \"{}\"\n", header);
+            }
         }
+        
+        // 添加宏定义，将 RTE_MEMPOOL_REGISTER_OPS 定义为 MEMPOOL_REGISTER_OPS
+        headers_string += "\n/* 添加宏定义，解决编译错误 */\n";
+        headers_string += "#define RTE_MEMPOOL_REGISTER_OPS MEMPOOL_REGISTER_OPS\n\n";
+        
         let formatted_string = template_string.replace("%header_list%", &headers_string);
         target.write_fmt(format_args!("{}", formatted_string)).ok();
     }
