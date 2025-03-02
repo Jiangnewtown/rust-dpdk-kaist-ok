@@ -25,13 +25,16 @@ rust-dpdk-sys = { path = "dpdk-sys", version = "0.1.22110" }
 [[example]]
 name = "basic_dpdk"
 path = "examples/basic_dpdk.rs"
+required-features = []
 
 [[example]]
 name = "packet_forwarder"
 path = "examples/packet_forwarder.rs"
+required-features = []
 
 [[example]]
 name = "mempool_demo"
 path = "examples/mempool_demo.rs"
+required-features = []
 
 [dev-dependencies]

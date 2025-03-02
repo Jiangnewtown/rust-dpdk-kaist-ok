@@ -26,7 +26,8 @@ fn main() {
         CString::new("-l").unwrap(),
         CString::new("0-1").unwrap(),  // 使用核心 0 和 1
         CString::new("--no-pci").unwrap(),  // 不使用 PCI 设备，适合虚拟环境测试
-        CString::new("--vdev=net_pcap0,iface=lo").unwrap(),  // 使用 pcap 驱动，监听本地回环接口
+        // 使用 null 驱动代替 pcap 驱动
+        CString::new("--vdev=net_null0").unwrap(),
     ];
 
     let mut c_args: Vec<*mut c_char> = args
