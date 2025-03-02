@@ -10,6 +10,48 @@
 2. 成功编译了 DPDK Rust 绑定库
 3. 如果要使用物理网卡，需要配置大页内存和绑定网卡到 DPDK 兼容的驱动程序
 
+## 在 Fedora 上运行示例
+
+在 Fedora 系统上运行 DPDK 示例程序可能需要一些额外的步骤：
+
+### 1. 设置 LD_LIBRARY_PATH
+
+由于 DPDK 共享库可能不在标准库路径中，需要使用 LD_LIBRARY_PATH 环境变量指定库的位置：
+
+```bash
+# 编译示例程序
+cargo build --example basic_dpdk
+
+# 运行示例程序
+sudo LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib ./target/debug/examples/basic_dpdk
+```
+
+### 2. 使用 null 驱动代替 pcap 驱动
+
+如果在使用 pcap 驱动时遇到问题，可以修改示例代码，使用 null 驱动代替：
+
+```rust
+// 将这行
+CString::new("--vdev=net_pcap0,iface=lo").unwrap(),
+
+// 替换为
+CString::new("--vdev=net_null0").unwrap(),
+```
+
+null 驱动是一个虚拟驱动，它会生成随机数据包，非常适合测试和演示目的。
+
+### 3. 将 DPDK 库路径添加到系统配置（可选）
+
+为了避免每次都设置 LD_LIBRARY_PATH，可以将 DPDK 库路径添加到系统的动态链接器配置中：
+
+```bash
+sudo sh -c 'echo "/usr/local/lib64" > /etc/ld.so.conf.d/dpdk.conf'
+sudo sh -c 'echo "/usr/local/lib" >> /etc/ld.so.conf.d/dpdk.conf'
+sudo ldconfig
+```
+
+设置后，可以直接运行程序，而不需要每次都指定 LD_LIBRARY_PATH。
+
 ## 示例程序
 
 ### 1. 基本 DPDK 示例 (basic_dpdk.rs)
@@ -18,7 +60,11 @@
 
 运行方法：
 ```bash
+# Ubuntu/Debian
 sudo cargo run --example basic_dpdk
+
+# Fedora
+sudo LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib ./target/debug/examples/basic_dpdk
 ```
 
 ### 2. 数据包转发器 (packet_forwarder.rs)
@@ -56,11 +102,17 @@ sudo cargo run --example basic_dpdk
 由于 DPDK 需要访问网络设备和大页内存，运行此程序需要 sudo 权限：
 
 ```bash
+# Ubuntu/Debian
 # 编译程序
 cargo build --example packet_forwarder
-
 # 运行程序
-sudo LD_LIBRARY_PATH=/usr/local/lib64 ./target/debug/examples/packet_forwarder
+sudo ./target/debug/examples/packet_forwarder
+
+# Fedora
+# 编译程序
+cargo build --example packet_forwarder
+# 运行程序
+sudo LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib ./target/debug/examples/packet_forwarder
 ```
 
 ##### 注意事项
@@ -69,25 +121,24 @@ sudo LD_LIBRARY_PATH=/usr/local/lib64 ./target/debug/examples/packet_forwarder
 - 需要预先配置 DPDK 环境，包括大页内存和网络设备绑定
 - 使用 Ctrl+C 可以优雅地退出程序
 
-运行方法：
-```bash
-sudo cargo run --example packet_forwarder
-```
-
 ### 3. 内存池演示 (mempool_demo.rs)
 
 这个示例展示了如何使用 DPDK 的内存池功能，包括创建内存池、分配和释放对象。
 
 运行方法：
 ```bash
+# Ubuntu/Debian
 cargo run --example mempool_demo
+
+# Fedora
+LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib cargo run --example mempool_demo
 ```
 
 ## 注意事项
 
 1. 大多数 DPDK 应用程序需要以 root 权限运行
 2. 如果使用物理网卡，需要先配置好 DPDK 环境
-3. 这些示例默认使用虚拟设备（如 pcap），适合在没有专用硬件的环境中测试
+3. 这些示例默认使用虚拟设备（如 pcap 或 null），适合在没有专用硬件的环境中测试
 4. 按 Ctrl+C 可以优雅地退出程序
 
 ## 自定义配置
@@ -108,6 +159,28 @@ CString::new("0000:01:00.0").unwrap(),
 其中 `0000:01:00.0` 是你的网卡的 PCI 地址。
 
 ## 故障排除
+
+### 找不到共享库
+
+如果遇到 "error while loading shared libraries" 错误，使用 LD_LIBRARY_PATH 指定库的位置：
+
+```bash
+sudo LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib ./target/debug/examples/basic_dpdk
+```
+
+### 无法解析 pcap 设备
+
+如果遇到 "failed to parse device 'net_pcap0'" 错误，修改代码使用 null 驱动代替：
+
+```rust
+// 将这行
+CString::new("--vdev=net_pcap0,iface=lo").unwrap(),
+
+// 替换为
+CString::new("--vdev=net_null0").unwrap(),
+```
+
+### 其他常见问题
 
 如果遇到权限问题，确保以 root 权限运行或使用 sudo。
 
